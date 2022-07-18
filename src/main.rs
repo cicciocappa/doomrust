@@ -20,6 +20,8 @@ struct World {
     keys: Keys,
     tick: u32,
     player: Player,
+    sectors: Vec<Sector>,
+    walls: Vec<Wall>,
 }
 
 struct Keys {
@@ -38,6 +40,24 @@ struct Player {
     z: i32,
     angle: i32,
     look: i32,
+}
+
+struct Wall {
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    color: u8,
+}
+
+struct Sector {
+    wall_start: usize,
+    wall_end: usize,
+    z1: i32,
+    z2: i32,
+    x: i32,
+    y: i32,
+    distance: i32,
 }
 
 fn main() -> Result<(), Error> {
@@ -120,10 +140,14 @@ impl World {
             angle: 0,
             look: 0,
         };
+        let walls = Vec::new();
+        let sectors = Vec::new();
         Self {
             keys,
             tick: 0,
             player,
+            sectors,
+            walls,
         }
     }
 
@@ -188,42 +212,57 @@ impl World {
         let cs = math::COS[self.player.angle as usize];
         let sn = math::SIN[self.player.angle as usize];
 
-        let x1 = 40 - self.player.x;
-        let y1 = 10 - self.player.y;
+        for s in 0..self.sectors.len() {
+            for w in self.sectors[s].wall_start..self.sectors[s].wall_end {
+                let x1 = self.walls[w].x1 - self.player.x;
+                let y1 = self.walls[w].y1 - self.player.y;
 
-        let x2 = 40 - self.player.x;
-        let y2 = 290 - self.player.y;
+                let x2 = self.walls[w].x2 - self.player.x;
+                let y2 = self.walls[w].y2 - self.player.y;
 
-        let wx0 = x1 as f64 * cs - y1 as f64 * sn;
-        let wx1 = x2 as f64 * cs - y2 as f64 * sn;
+                let mut wx0 = x1 as f64 * cs - y1 as f64 * sn;
+                let mut wx1 = x2 as f64 * cs - y2 as f64 * sn;
 
-        let wx2 = wx0;
-        let wx3 = wx1;
+                let mut wx2 = wx0;
+                let mut wx3 = wx1;
 
-        let wy0 = y1 as f64 * cs + x1 as f64 * sn;
-        let wy1 = y2 as f64 * cs + x2 as f64 * sn;
+                let mut wy0 = y1 as f64 * cs + x1 as f64 * sn;
+                let mut wy1 = y2 as f64 * cs + x2 as f64 * sn;
 
-        let wy2 = wy0;
-        let wy3 = wy1;
+                let mut wy2 = wy0;
+                let mut wy3 = wy1;
 
-        let wz0 = 0.0 - self.player.z as f64 + (self.player.look as f64 * wy0 / 32.0);
-        let wz1 = 0.0 - self.player.z as f64 + (self.player.look as f64 * wy1 / 32.0);
+                let mut wz0 = self.sectors[s].z1 as f64 - self.player.z as f64 + (self.player.look as f64 * wy0 / 32.0);
+                let mut wz1 = self.sectors[s].z1 as f64 - self.player.z as f64 + (self.player.look as f64 * wy1 / 32.0);
 
-        let wz2 = wz0 + 40.0;
-        let wz3 = wz1 + 40.0;
+                let mut wz2 = wz0 + self.sectors[s].z2 as f64;
+                let mut wz3 = wz1 + self.sectors[s].z2 as f64;
 
-        let sx0 = (wx0 * 200.0 / wy0) as i32 + SW2;
-        let sy0 = (wz0 * 200.0 / wy0) as i32 + SH2;
+                if wy0 < 1.0 && wy1 < 1.0 {
+                    continue;
+                }
+                if wy0 < 1.0 {
+                    World::clip_behind_player(&mut wx0, &mut wy0, &mut wz0, wx1, wy1, wz1);
+                    World::clip_behind_player(&mut wx2, &mut wy2, &mut wz2, wx3, wy3, wz3);
+                }
+                if wy1 < 1.0 {
+                    World::clip_behind_player(&mut wx1, &mut wy1, &mut wz1, wx0, wy0, wz0);
+                    World::clip_behind_player(&mut wx3, &mut wy3, &mut wz3, wx2, wy2, wz2);
+                }
+                let sx0 = (wx0 * 200.0 / wy0) as i32 + SW2;
+                let sy0 = (wz0 * 200.0 / wy0) as i32 + SH2;
 
-        let sx1 = (wx1 * 200.0 / wy1) as i32 + SW2;
-        let sy1 = (wz1 * 200.0 / wy1) as i32 + SH2;
+                let sx1 = (wx1 * 200.0 / wy1) as i32 + SW2;
+                let sy1 = (wz1 * 200.0 / wy1) as i32 + SH2;
 
-        let sx2 = (wx2 * 200.0 / wy2) as i32 + SW2;
-        let sy2 = (wz2 * 200.0 / wy2) as i32 + SH2;
+                let sx2 = (wx2 * 200.0 / wy2) as i32 + SW2;
+                let sy2 = (wz2 * 200.0 / wy2) as i32 + SH2;
 
-        let sx3 = (wx3 * 200.0 / wy3) as i32 + SW2;
-        let sy3 = (wz3 * 200.0 / wy3) as i32 + SH2;
-        self.draw_wall(frame, sx0, sx1, sy0, sy1, sy2, sy3);
+                let sx3 = (wx3 * 200.0 / wy3) as i32 + SW2;
+                let sy3 = (wz3 * 200.0 / wy3) as i32 + SH2;
+                self.draw_wall(frame, sx0, sx1, sy0, sy1, sy2, sy3);
+            }
+        }
     }
 
     fn draw_wall(
@@ -276,14 +315,24 @@ impl World {
         }
     }
 
-    fn clip_behind_player(
-        x1: &mut i32,
-        y1: &mut i32,
-        z1: &mut i32,
-        x2: &mut i32,
-        y2: &mut i32,
-        z2: &mut i32,
-    ) {
+    fn clip_behind_player(x1: &mut f64, y1: &mut f64, z1: &mut f64, x2: f64, y2: f64, z2: f64) {
+        let da = *y1;
+        let db = y2;
+        let mut d = da - db;
+        if d == 0.0 {
+            d = 1.0;
+        }
+        let s = da / d;
+        *x1 = *x1 + (s * (x2 - *x1));
+        *y1 = *y1 + (s * (y2 - *y1));
+        if *y1 == 0.0 {
+            *y1 = 1.0;
+        }
+        *z1 = *z1 + (s * (z2 - *z1));
+    }
+
+    fn distance(x1: i32, y1: i32, x2: i32, y2: i32) -> i32 {
+        (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
     }
 
     fn clear(&self, frame: &mut [u8]) {
