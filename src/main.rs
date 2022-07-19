@@ -11,7 +11,7 @@ const HEIGHT: u32 = 240;
 const SH2: i32 = HEIGHT as i32 / 2;
 const SW2: i32 = WIDTH as i32 / 2;
 
-const ZOOM: f64 = 4.0;
+const ZOOM: f64 = 3.0;
 
 mod math;
 
@@ -140,8 +140,39 @@ impl World {
             angle: 0,
             look: 0,
         };
-        let walls = Vec::new();
-        let sectors = Vec::new();
+        let mut walls = Vec::new();
+        let mut sectors = Vec::new();
+        let init_sectors = [0, 4, 0, 40, 4, 8, 0, 40, 8, 12, 0, 40, 12, 16, 0, 40];
+
+        let init_walls = [
+            0, 0, 32, 0, 0, 32, 0, 32, 32, 1, 32, 32, 0, 32, 0, 0, 32, 0, 0, 1, 64, 0, 96, 0, 2,
+            96, 0, 96, 32, 3, 96, 32, 64, 32, 2, 64, 32, 64, 0, 3, 64, 64, 96, 64, 4, 96, 64, 96,
+            96, 5, 96, 96, 64, 96, 4, 64, 96, 64, 64, 5, 0, 64, 32, 64, 6, 32, 64, 32, 96, 7, 32,
+            96, 0, 96, 6, 0, 96, 0, 64, 7,
+        ];
+
+        for n in 0..4 {
+            sectors.push(Sector {
+                wall_start: init_sectors[n * 4],
+                wall_end: init_sectors[n * 4 + 1],
+                x: 0,
+                y: 0,
+                distance: 0,
+                z1: init_sectors[n * 4 + 2] as i32,
+                z2: init_sectors[n * 4 + 3] as i32,
+            });
+        }
+
+        for n in 0..16 {
+            walls.push( Wall{
+                x1: init_walls[n*5],
+                y1: init_walls[n*5+1],
+                x2: init_walls[n*5+2],
+                y2: init_walls[n*5+3],
+                color: init_walls[n*5+4] as u8,
+            });
+        }
+
         Self {
             keys,
             tick: 0,
@@ -207,12 +238,13 @@ impl World {
     /// Draw the `World` state to the frame buffer.
     ///
     /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
-    fn draw(&self, frame: &mut [u8]) {
+    fn draw(&mut self, frame: &mut [u8]) {
         self.clear(frame);
         let cs = math::COS[self.player.angle as usize];
         let sn = math::SIN[self.player.angle as usize];
 
         for s in 0..self.sectors.len() {
+            self.sectors[s].distance = 0;
             for w in self.sectors[s].wall_start..self.sectors[s].wall_end {
                 let x1 = self.walls[w].x1 - self.player.x;
                 let y1 = self.walls[w].y1 - self.player.y;
@@ -222,19 +254,21 @@ impl World {
 
                 let mut wx0 = x1 as f64 * cs - y1 as f64 * sn;
                 let mut wx1 = x2 as f64 * cs - y2 as f64 * sn;
-
                 let mut wx2 = wx0;
                 let mut wx3 = wx1;
 
                 let mut wy0 = y1 as f64 * cs + x1 as f64 * sn;
                 let mut wy1 = y2 as f64 * cs + x2 as f64 * sn;
-
                 let mut wy2 = wy0;
                 let mut wy3 = wy1;
 
-                let mut wz0 = self.sectors[s].z1 as f64 - self.player.z as f64 + (self.player.look as f64 * wy0 / 32.0);
-                let mut wz1 = self.sectors[s].z1 as f64 - self.player.z as f64 + (self.player.look as f64 * wy1 / 32.0);
+                self.sectors[s].distance +=
+                    World::distance(0, 0, (wx0 + wx1) as i32 / 2, (wy0 + wy1) as i32 / 2);
 
+                let mut wz0 = self.sectors[s].z1 as f64 - self.player.z as f64
+                    + (self.player.look as f64 * wy0 / 32.0);
+                let mut wz1 = self.sectors[s].z1 as f64 - self.player.z as f64
+                    + (self.player.look as f64 * wy1 / 32.0);
                 let mut wz2 = wz0 + self.sectors[s].z2 as f64;
                 let mut wz3 = wz1 + self.sectors[s].z2 as f64;
 
@@ -260,8 +294,10 @@ impl World {
 
                 let sx3 = (wx3 * 200.0 / wy3) as i32 + SW2;
                 let sy3 = (wz3 * 200.0 / wy3) as i32 + SH2;
-                self.draw_wall(frame, sx0, sx1, sy0, sy1, sy2, sy3);
+                self.draw_wall(frame, sx0, sx1, sy0, sy1, sy2, sy3, self.walls[w].color);
             }
+            let num_wall = (self.sectors[s].wall_end - self.sectors[s].wall_start) as i32;
+            self.sectors[s].distance /= num_wall;
         }
     }
 
@@ -274,6 +310,7 @@ impl World {
         b2: i32,
         t1: i32,
         t2: i32,
+        color: u8,
     ) {
         let dyb = b2 - b1;
         let dyt = t2 - t1;
@@ -310,7 +347,7 @@ impl World {
                 y2 = HEIGHT as i32 - 1;
             }
             for y in y1..y2 {
-                self.pixel(frame, x as u32, y as u32, 0);
+                self.pixel(frame, x as u32, y as u32, color);
             }
         }
     }
