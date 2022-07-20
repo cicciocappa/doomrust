@@ -164,12 +164,12 @@ impl World {
         }
 
         for n in 0..16 {
-            walls.push( Wall{
-                x1: init_walls[n*5],
-                y1: init_walls[n*5+1],
-                x2: init_walls[n*5+2],
-                y2: init_walls[n*5+3],
-                color: init_walls[n*5+4] as u8,
+            walls.push(Wall {
+                x1: init_walls[n * 5],
+                y1: init_walls[n * 5 + 1],
+                x2: init_walls[n * 5 + 2],
+                y2: init_walls[n * 5 + 3],
+                color: init_walls[n * 5 + 4] as u8,
             });
         }
 
@@ -243,6 +243,8 @@ impl World {
         let cs = math::COS[self.player.angle as usize];
         let sn = math::SIN[self.player.angle as usize];
 
+        self.sectors.sort_by(|a, b| b.distance.cmp(&a.distance));
+
         for s in 0..self.sectors.len() {
             self.sectors[s].distance = 0;
             for w in self.sectors[s].wall_start..self.sectors[s].wall_end {
@@ -283,6 +285,7 @@ impl World {
                     World::clip_behind_player(&mut wx1, &mut wy1, &mut wz1, wx0, wy0, wz0);
                     World::clip_behind_player(&mut wx3, &mut wy3, &mut wz3, wx2, wy2, wz2);
                 }
+                /*
                 let sx0 = (wx0 * 200.0 / wy0) as i32 + SW2;
                 let sy0 = (wz0 * 200.0 / wy0) as i32 + SH2;
 
@@ -294,6 +297,20 @@ impl World {
 
                 let sx3 = (wx3 * 200.0 / wy3) as i32 + SW2;
                 let sy3 = (wz3 * 200.0 / wy3) as i32 + SH2;
+                */
+
+                let sx0 = ((wx0 * 200.0 / wy0) as i32).saturating_add(SW2);
+                let sy0 = ((wz0 * 200.0 / wy0) as i32).saturating_add(SH2);
+
+                let sx1 = ((wx1 * 200.0 / wy1) as i32).saturating_add(SW2);
+                let sy1 = ((wz1 * 200.0 / wy1) as i32).saturating_add(SH2);
+
+                let sx2 = ((wx2 * 200.0 / wy2) as i32).saturating_add(SW2);
+                let sy2 = ((wz2 * 200.0 / wy2) as i32).saturating_add(SH2);
+
+                let sx3 = ((wx3 * 200.0 / wy3) as i32).saturating_add(SW2);
+                let sy3 = ((wz3 * 200.0 / wy3) as i32).saturating_add(SH2);
+
                 self.draw_wall(frame, sx0, sx1, sy0, sy1, sy2, sy3, self.walls[w].color);
             }
             let num_wall = (self.sectors[s].wall_end - self.sectors[s].wall_start) as i32;
