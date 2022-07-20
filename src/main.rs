@@ -329,7 +329,8 @@ impl World {
         t2: i32,
         color: u8,
     ) {
-        let dyb = b2 - b1;
+        //let dyb = b2 - b1;
+        let dyb = b2.saturating_sub(b1);
         let dyt = t2 - t1;
         let mut dx = x2 - x1;
         if dx == 0 {
